@@ -8,8 +8,8 @@ class ItemToItemBatchSampler(IterableDataset):
         self.g = g
         self.user_type = user_type
         self.item_type = item_type
-        self.user_to_item_etype = list(g.metagraph()[user_type][item_type])[0]
-        self.item_to_user_etype = list(g.metagraph()[item_type][user_type])[0]
+        self.user_to_item_etype = list(g.metagraph()[user_type][item_type])[0] # 'watched'
+        self.item_to_user_etype = list(g.metagraph()[item_type][user_type])[0] # 'watched-by'
         self.batch_size = batch_size
 
     def __iter__(self):
@@ -31,10 +31,10 @@ class ItemToItemBatchSampler(IterableDataset):
             result = dgl.sampling.random_walk(
                 self.g,
                 heads,
-                metapath=[self.item_to_user_etype, self.user_to_item_etype])
-            tails = result[0][:, 2]
-            neg_tails = torch.randint(0, self.g.number_of_nodes(self.item_type), (self.batch_size,))
-            mask = (tails != -1)
+                metapath=[self.item_to_user_etype, self.user_to_item_etype]) # item-to-item random walk
+            tails = result[0][:, 2] # 연결되어있는 random walk 도착지
+            neg_tails = torch.randint(0, self.g.number_of_nodes(self.item_type), (self.batch_size,)) # 그냥 랜덤 도착지
+            mask = (tails != -1) # 랜덤워크가 끊기거나 탐색할 수 없는 경우엔 -1이 되기 때문에 이를 제외하기 위한 작업
             yield heads[mask], tails[mask], neg_tails[mask]
 
 

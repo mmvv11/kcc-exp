@@ -16,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('--num-layers', type=int, default=2)
     parser.add_argument('--hidden-dims', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--num-epochs', type=int, default=1)
     parser.add_argument('--batches-per-epoch', type=int, default=4000)
     parser.add_argument('--num-workers', type=int, default=0)
@@ -30,4 +30,4 @@ if __name__ == '__main__':
     h_item = train(dataset, args)
 
     # Write h_item numpy file
-    np.savez("h_items.npz", movie_vectors=h_item.numpy())
+    np.savez("h_items.npz", movie_vectors=h_item.cpu().numpy())

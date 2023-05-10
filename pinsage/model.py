@@ -1,3 +1,5 @@
+import os
+
 import tqdm
 import torch
 import torch.nn as nn
@@ -20,6 +22,7 @@ class PinSAGEModel(nn.Module):
     Scorer 객체를 통하여 score를 계산하여 low-rank positive를 계산한다.
 
     """
+
     def __init__(self, full_graph, ntype, hidden_dims, n_layers):
         super().__init__()
         self.proj = layers.LinearProjector(full_graph, ntype, hidden_dims)
@@ -39,17 +42,17 @@ class PinSAGEModel(nn.Module):
 
 
 def train(dataset, args):
-    g = dataset['train-graph']
-    user_ntype = dataset['user-type']
-    item_ntype = dataset['item-type']
+    g = dataset['train-graph']  # dgl graph
+    user_ntype = dataset['user-type']  # 'user'
+    item_ntype = dataset['item-type']  # 'movie'
     device = torch.device(args.device)
-    
+
     # sampling
-    batch_sampler = ItemToItemBatchSampler(g, user_ntype, item_ntype, args.batch_size)
+    batch_sampler = ItemToItemBatchSampler(g, user_ntype, item_ntype, args.batch_size)  # item에서 item으로 가는 랜덤 워크 샘플러
     neighbor_sampler = NeighborSampler(
         g, user_ntype, item_ntype, args.random_walk_length,
         args.random_walk_restart_prob, args.num_random_walks, args.num_neighbors,
-        args.num_layers)
+        args.num_layers)  # user의 이웃 노드를 핀세이지 알고리즘으로 샘플링
     collator = PinSAGECollator(neighbor_sampler, g, item_ntype)
     dataloader = DataLoader(
         batch_sampler,
@@ -64,7 +67,6 @@ def train(dataset, args):
 
     # model
     model = PinSAGEModel(g, item_ntype, args.hidden_dims, args.num_layers).to(device)
-
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_list = []
 
@@ -73,6 +75,9 @@ def train(dataset, args):
         model.train()
         for batch_id in range(args.batches_per_epoch):
             pos_graph, neg_graph, blocks = next(dataloader_it)
+            pos_graph = pos_graph.to(device)
+            neg_graph = neg_graph.to(device)
+            blocks = [block.to(device) for block in blocks]
             loss = model(pos_graph, neg_graph, blocks).mean()
             loss_list.append(loss)
             opt.zero_grad()
@@ -88,7 +93,15 @@ def train(dataset, args):
         with torch.no_grad():
             h_item_batches = []
             for blocks in dataloader_test:
+                blocks = [block.to(device) for block in blocks]
                 h_item_batches.append(model.get_representation(blocks))
             h_item = torch.cat(h_item_batches, 0)
+
+    checkpoint = {
+        'model': model.state_dict(),
+        'optimizer': opt.state_dict()
+    }
+
+    torch.save(checkpoint, "model.pt")
 
     return h_item
